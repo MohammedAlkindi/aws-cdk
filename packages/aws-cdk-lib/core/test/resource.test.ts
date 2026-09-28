@@ -851,6 +851,111 @@ describe('resource', () => {
       });
     });
 
+    describe('Fn::Transform overrides', () => {
+      const transform = { Name: 'AWS::Include', Parameters: { Location: 's3://bucket/snippet.yaml' } };
+
+      function newResource(stack: Stack) {
+        return new CfnResource(stack, 'MyResource', {
+          type: 'MyResourceType',
+          properties: {
+            prop1: 'value1',
+            prop2: { subprop1: 'a', subprop2: 'b' },
+          },
+        });
+      }
+
+      function stackWithFlag(value?: boolean) {
+        const app = new App();
+        const stack = new Stack(app, 'Stack');
+        if (value !== undefined) {
+          stack.node.setContext(cxapi.FN_TRANSFORM_OVERRIDE_KEEPS_SIBLING_KEYS, value);
+        }
+        return stack;
+      }
+
+      test.each([undefined, false])('replaces sibling properties when the flag is %s', (flag) => {
+        // GIVEN
+        const stack = stackWithFlag(flag);
+        const resource = newResource(stack);
+
+        // WHEN
+        resource.addPropertyOverride('Fn::Transform', transform);
+
+        // THEN
+        expect(toCloudFormation(stack).Resources.MyResource).toEqual({
+          Type: 'MyResourceType',
+          Properties: { 'Fn::Transform': transform },
+        });
+      });
+
+      test('keeps sibling properties when the flag is enabled', () => {
+        // GIVEN
+        const stack = stackWithFlag(true);
+        const resource = newResource(stack);
+
+        // WHEN
+        resource.addPropertyOverride('Fn::Transform', transform);
+
+        // THEN
+        expect(toCloudFormation(stack).Resources.MyResource).toEqual({
+          Type: 'MyResourceType',
+          Properties: {
+            'prop1': 'value1',
+            'prop2': { subprop1: 'a', subprop2: 'b' },
+            'Fn::Transform': transform,
+          },
+        });
+      });
+
+      test('keeps sibling keys of a nested object when the flag is enabled', () => {
+        // GIVEN
+        const stack = stackWithFlag(true);
+        const resource = newResource(stack);
+
+        // WHEN
+        resource.addPropertyOverride('prop2.Fn::Transform', transform);
+
+        // THEN
+        expect(toCloudFormation(stack).Resources.MyResource.Properties.prop2).toEqual({
+          'subprop1': 'a',
+          'subprop2': 'b',
+          'Fn::Transform': transform,
+        });
+      });
+
+      test('still replaces an intrinsic value when the flag is enabled', () => {
+        // GIVEN
+        const stack = stackWithFlag(true);
+        const resource = new CfnResource(stack, 'MyResource', {
+          type: 'MyResourceType',
+          properties: { prop1: Fn.ref('Param') },
+        });
+
+        // WHEN
+        resource.addPropertyOverride('prop1', Fn.transform('SomeMacro', { key: 'value' }));
+
+        // THEN
+        expect(toCloudFormation(stack).Resources.MyResource.Properties).toEqual({
+          prop1: { 'Fn::Transform': { Name: 'SomeMacro', Parameters: { key: 'value' } } },
+        });
+      });
+
+      test('other intrinsics still replace sibling keys when the flag is enabled', () => {
+        // GIVEN
+        const stack = stackWithFlag(true);
+        const resource = newResource(stack);
+
+        // WHEN
+        resource.addPropertyOverride('prop2', Fn.join('-', ['a', Fn.ref('Param')]));
+
+        // THEN
+        expect(toCloudFormation(stack).Resources.MyResource.Properties).toEqual({
+          prop1: 'value1',
+          prop2: { 'Fn::Join': ['-', ['a', { Ref: 'Param' }]] },
+        });
+      });
+    });
+
     describe('using mutable properties', () => {
       test('can be used by derived classes to specify overrides before render()', () => {
         const stack = new Stack();

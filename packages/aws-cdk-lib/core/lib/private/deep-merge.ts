@@ -28,10 +28,35 @@ const MERGE_EXCLUDE_KEYS: string[] = [
 ];
 
 /**
+ * Options for `deepMergeWithOptions`.
+ */
+export interface DeepMergeOptions {
+  /**
+   * Merge a source object whose only key is `Fn::Transform` into the existing target
+   * object, instead of replacing the target object.
+   *
+   * Unlike the other intrinsics, CloudFormation allows `Fn::Transform` next to sibling
+   * keys (for example to embed an `AWS::Include` snippet in `Properties`), so adding it
+   * must not drop the keys that are already there.
+   *
+   * @default false
+   */
+  readonly keepSiblingsOfFnTransform?: boolean;
+}
+
+/**
  * Merges `source` into `target`, overriding any existing values.
  * `null`s will cause a value to be deleted.
  */
 export function deepMerge(target: any, ...sources: any[]) {
+  return deepMergeWithOptions({}, target, ...sources);
+}
+
+/**
+ * Merges `source` into `target`, overriding any existing values.
+ * `null`s will cause a value to be deleted.
+ */
+export function deepMergeWithOptions(options: DeepMergeOptions, target: any, ...sources: any[]) {
   for (const source of sources) {
     if (typeof(source) !== 'object' || typeof(target) !== 'object') {
       throw new AssumptionError(lit`InvalidDeepMergeArguments`, `Invalid usage. Both source (${JSON.stringify(source)}) and target (${JSON.stringify(target)}) must be objects`);
@@ -100,12 +125,14 @@ export function deepMerge(target: any, ...sources: any[]) {
          *   }]
          */
         if (Object.keys(value).length === 1) {
-          if (MERGE_EXCLUDE_KEYS.includes(Object.keys(value)[0])) {
+          const sourceKey = Object.keys(value)[0];
+          const keepSiblings = options.keepSiblingsOfFnTransform && sourceKey === 'Fn::Transform';
+          if (MERGE_EXCLUDE_KEYS.includes(sourceKey) && !keepSiblings) {
             target[key] = {};
           }
         }
 
-        deepMerge(target[key], value);
+        deepMergeWithOptions(options, target[key], value);
 
         // if the result of the merge is an empty object, it's because the
         // eventual value we assigned is `undefined`, and there are no

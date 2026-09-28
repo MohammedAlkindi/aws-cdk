@@ -119,6 +119,7 @@ Flags come in three types:
 | [@aws-cdk/aws-eks:defaultToAL2023](#aws-cdkaws-eksdefaulttoal2023) | Use AL2023 as the default AMI type for EKS managed node groups using non-GPU instance types instead of the deprecated AL2 | 2.259.0 | new default |
 | [@aws-cdk/core:validateAgainstDefaultRules](#aws-cdkcorevalidateagainstdefaultrules) | Treat CloudFormation Validate findings as errors | 2.262.0 | config |
 | [@aws-cdk/aws-ecs:removeEmptyLoadBalancers](#aws-cdkaws-ecsremoveemptyloadbalancers) | Render an empty `LoadBalancers` array on an ECS service that has no target groups | V2NEXT | fix |
+| [@aws-cdk/core:fnTransformOverrideKeepsSiblingKeys](#aws-cdkcorefntransformoverridekeepssiblingkeys) | Keep existing properties when an override adds an `Fn::Transform` key next to them | V2NEXT | fix |
 
 <!-- END table -->
 
@@ -210,6 +211,7 @@ The following json shows the current recommended set of flags, as `cdk init` wou
     "@aws-cdk/core:enableAdditionalMetadataCollection": true,
     "@aws-cdk/core:enablePartitionLiterals": true,
     "@aws-cdk/core:explicitStackTags": true,
+    "@aws-cdk/core:fnTransformOverrideKeepsSiblingKeys": true,
     "@aws-cdk/core:includePrefixInUniqueNameGeneration": true,
     "@aws-cdk/core:target-partitions": [
       "aws",
@@ -2580,6 +2582,34 @@ is added, updated or removed, so expect a one-time deployment of those services.
 | V2NEXT | `false` | `true` |
 
 **Compatibility with old behavior:** Set this flag to `false` to keep omitting the property, and remove the registrations with `aws ecs update-service --load-balancers '[]'` instead.
+
+
+### @aws-cdk/core:fnTransformOverrideKeepsSiblingKeys
+
+*Keep existing properties when an override adds an `Fn::Transform` key next to them*
+
+Flag type: Backwards incompatible bugfix
+
+CloudFormation allows `Fn::Transform` next to sibling keys, for example to embed an
+`AWS::Include` snippet in a resource's `Properties`. Without this flag, an override whose
+only key is `Fn::Transform` replaces the whole object it is merged into, as it would for
+`Fn::If` or `Ref`. `addPropertyOverride('Fn::Transform', ...)` then removes every other
+property of the resource, and `CfnInclude` can drop properties of resources in the
+included template that put `Fn::Transform` next to other keys.
+
+When this flag is enabled, the `Fn::Transform` key is merged next to the existing keys.
+
+Enabling this changes the template of any resource that hits this case: the properties that
+were dropped come back. Adding back a property that requires replacement, such as a bucket
+name, replaces the resource.
+
+
+| Since | Unset behaves like | Recommended value |
+| ----- | ----- | ----- |
+| (not in v1) |  |  |
+| V2NEXT | `false` | `true` |
+
+**Compatibility with old behavior:** Set this flag to `false` to keep dropping the sibling keys, or remove the properties you do not want with `addPropertyDeletionOverride()`.
 
 
 <!-- END details -->
