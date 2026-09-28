@@ -873,6 +873,20 @@ capacityProvider.addFunction(fn, {
 
 Note that once you use a capacity provider in a function, it cannot be removed, only changed.
 
+To run a function on a capacity provider that is managed outside of your CDK app, import the capacity provider and apply the
+`FunctionCapacityProvider` [mixin](#mixins) to the function. It accepts the same options as `addFunction`:
+
+```ts
+declare const fn: lambda.Function;
+
+const capacityProvider = lambda.CapacityProvider.fromCapacityProviderArn(this, 'ImportedCapacityProvider',
+  'arn:aws:lambda:us-east-1:123456789012:capacity-provider:my-capacity-provider');
+
+fn.with(new lambda.mixins.FunctionCapacityProvider(capacityProvider, {
+  perExecutionEnvironmentMaxConcurrency: 10,
+}));
+```
+
 #### CapacityProviderFunctionOptions (addFunction method)
 
 | Name | Type | Required | Description |
@@ -1980,4 +1994,27 @@ new lambda.Function(this, 'Function', {
   runtime: lambda.Runtime.PYTHON_3_9,
   handler: 'index.handler',
 });
+```
+
+## Mixins
+
+Lambda provides [mixins](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib-readme.html#mixins) that can be applied to L1 and L2 constructs.
+
+### FunctionCapacityProvider
+
+Runs a function on a Lambda capacity provider. Accepts any capacity provider reference, including imported capacity providers and `CfnCapacityProvider`.
+Any existing capacity provider configuration on the function is replaced:
+
+```ts
+declare const capacityProvider: lambda.ICapacityProvider;
+declare const fn: lambda.Function;
+declare const cfnFunction: lambda.CfnFunction;
+
+// L2 function
+fn.with(new lambda.mixins.FunctionCapacityProvider(capacityProvider));
+
+// L1 function
+cfnFunction.with(new lambda.mixins.FunctionCapacityProvider(capacityProvider, {
+  latestPublishedScalingConfig: { minExecutionEnvironments: 3 },
+}));
 ```
