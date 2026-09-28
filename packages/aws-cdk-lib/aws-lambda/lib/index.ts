@@ -31,6 +31,8 @@ export * from './snapstart-config';
 export * from './schema-registry';
 export * from './capacity-provider';
 
+export * as mixins from './mixins';
+
 // AWS::Lambda CloudFormation Resources:
 export * from './lambda.generated';
 

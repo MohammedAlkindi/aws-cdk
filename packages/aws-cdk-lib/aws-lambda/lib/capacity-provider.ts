@@ -4,12 +4,13 @@ import type { SystemLogLevel } from './function';
 import type { IFunction } from './function-base';
 import type { CfnFunction } from './lambda.generated';
 import { CfnCapacityProvider } from './lambda.generated';
+import { FunctionCapacityProvider } from './mixins';
 import type * as ec2 from '../../aws-ec2';
 import * as iam from '../../aws-iam';
 import type * as kms from '../../aws-kms';
 import type * as logs from '../../aws-logs';
 import type { IResource } from '../../core';
-import { Annotations, Arn, ArnFormat, Resource, Stack, Token, ValidationError } from '../../core';
+import { Arn, ArnFormat, Resource, Stack, Token, ValidationError } from '../../core';
 import { memoizedGetter } from '../../core/lib/helpers-internal';
 import { addConstructMetadata, MethodMetadata } from '../../core/lib/metadata-resource';
 import { lit } from '../../core/lib/private/literal-string';
@@ -615,51 +616,15 @@ export class CapacityProvider extends CapacityProviderBase {
   /**
    * Configures a Lambda function to use this capacity provider.
    *
+   * To attach a function to an imported capacity provider, apply the
+   * `FunctionCapacityProvider` mixin to the function instead.
+   *
    * @param func The Lambda function to configure
    * @param options Optional configuration for the function's capacity provider settings
    */
   @MethodMetadata()
   public addFunction(func: IFunction, options?: CapacityProviderFunctionOptions): void {
-    Annotations.of(func).addInfoV2('aws-lambda:Function.CapacityProviderConfiguration', 'Capacity provider configuration cannot be removed from a function, only modified.');
-
     const cfnFunction = func.node.defaultChild as CfnFunction;
-
-    cfnFunction.publishToLatestPublished = options?.publishToLatestPublished;
-
-    cfnFunction.capacityProviderConfig = {
-      lambdaManagedInstancesCapacityProviderConfig: {
-        capacityProviderArn: this.capacityProviderArn,
-        perExecutionEnvironmentMaxConcurrency: options?.perExecutionEnvironmentMaxConcurrency,
-        executionEnvironmentMemoryGiBPerVCpu: options?.executionEnvironmentMemoryGiBPerVCpu,
-      },
-    };
-
-    const minExecutionEnvironments = options?.latestPublishedScalingConfig?.minExecutionEnvironments;
-    const maxExecutionEnvironments = options?.latestPublishedScalingConfig?.maxExecutionEnvironments;
-
-    if (minExecutionEnvironments !== undefined || maxExecutionEnvironments !== undefined) {
-      this.validateFunctionScalingConfig(minExecutionEnvironments, maxExecutionEnvironments);
-      cfnFunction.functionScalingConfig = {
-        minExecutionEnvironments,
-        maxExecutionEnvironments,
-      };
-    }
-  }
-
-  private validateFunctionScalingConfig(minExecutionEnvironments?: number, maxExecutionEnvironments?: number) {
-    const minDefined = minExecutionEnvironments !== undefined && !Token.isUnresolved(minExecutionEnvironments);
-    const maxDefined = maxExecutionEnvironments !== undefined && !Token.isUnresolved(maxExecutionEnvironments);
-
-    if (minDefined && (minExecutionEnvironments < 0 || minExecutionEnvironments > 15000)) {
-      throw new ValidationError(lit`MinExecutionEnvironments`, `minExecutionEnvironments must be between 0 and 15000, but was ${minExecutionEnvironments}.`, this);
-    }
-
-    if (maxDefined && (maxExecutionEnvironments < 0 || maxExecutionEnvironments > 15000)) {
-      throw new ValidationError(lit`MaxExecutionEnvironments`, `maxExecutionEnvironments must be between 0 and 15000, but was ${maxExecutionEnvironments}.`, this);
-    }
-
-    if (minDefined && maxDefined && minExecutionEnvironments > maxExecutionEnvironments) {
-      throw new ValidationError(lit`MinExecutionEnvironmentsLessEqual`, 'minExecutionEnvironments must be less than or equal to maxExecutionEnvironments.', this);
-    }
+    cfnFunction.with(new FunctionCapacityProvider(this, options));
   }
 }
