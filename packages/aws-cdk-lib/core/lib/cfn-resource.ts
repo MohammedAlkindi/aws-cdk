@@ -20,7 +20,7 @@ import type { ResolutionTypeHint } from './type-hints';
 import * as cxapi from '../../cx-api';
 import type { ReferenceStrength } from './cross-stack-reference-strength';
 import { ValidationError } from './errors';
-import { deepMerge } from './private/deep-merge';
+import { deepMerge, deepMergeWithOptions } from './private/deep-merge';
 import type { ResourceEnvironment } from './environment';
 import { lit } from './private/literal-string';
 import { captureStackTrace } from './private/stack-trace';
@@ -568,7 +568,8 @@ export class CfnResource extends CfnRefElement {
               // as that's how removing overrides are represented as
               removeEmpty: false,
             });
-            return deepMerge(resourceDef, resolvedRawOverrides);
+            const keepSiblingsOfFnTransform = FeatureFlags.of(this).isEnabled(cxapi.FN_TRANSFORM_OVERRIDE_KEEPS_SIBLING_KEYS);
+            return deepMergeWithOptions({ keepSiblingsOfFnTransform }, resourceDef, resolvedRawOverrides);
           }),
         },
       };

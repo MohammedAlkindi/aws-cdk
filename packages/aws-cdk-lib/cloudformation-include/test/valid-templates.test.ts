@@ -6,6 +6,7 @@ import * as iam from '../../aws-iam';
 import * as s3 from '../../aws-s3';
 import type * as ssm from '../../aws-ssm';
 import * as core from '../../core';
+import * as cxapi from '../../cx-api';
 import * as inc from '../lib';
 import * as futils from '../lib/file-utils';
 
@@ -1246,6 +1247,49 @@ describe('CDK Include', () => {
     Template.fromStack(stack).templateMatches(
       loadTestFileToJsObject('tags-with-intrinsics.json'),
     );
+  });
+
+  test('keeps properties next to Fn::Transform when the fnTransformOverrideKeepsSiblingKeys flag is enabled', () => {
+    stack.node.setContext(cxapi.FN_TRANSFORM_OVERRIDE_KEEPS_SIBLING_KEYS, true);
+
+    includeTestTemplate(stack, 'fn-transform-next-to-properties.json');
+
+    Template.fromStack(stack).templateMatches(
+      loadTestFileToJsObject('fn-transform-next-to-properties.json'),
+    );
+  });
+
+  test('drops properties next to Fn::Transform when the fnTransformOverrideKeepsSiblingKeys flag is not set', () => {
+    includeTestTemplate(stack, 'fn-transform-next-to-properties.json');
+
+    const resources = Template.fromStack(stack).toJSON().Resources;
+    // the only other property of the topic is dropped
+    expect(resources.Topic.Properties).toEqual({
+      "Fn::Transform": {
+        "Name": "AWS::Include",
+        "Parameters": {
+          "Location": "s3://my-snippets/topic.yaml",
+        },
+      },
+    });
+    // VersioningConfiguration loses its Status
+    expect(resources.Bucket.Properties).toEqual({
+      "BucketName": "my-bucket",
+      "VersioningConfiguration": {
+        "Fn::Transform": {
+          "Name": "AWS::Include",
+          "Parameters": {
+            "Location": "s3://my-snippets/versioning.yaml",
+          },
+        },
+      },
+      "Fn::Transform": {
+        "Name": "AWS::Include",
+        "Parameters": {
+          "Location": "s3://my-snippets/bucket.yaml",
+        },
+      },
+    });
   });
 });
 

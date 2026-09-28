@@ -159,6 +159,7 @@ export const ANNOTATIONS_IN_VALIDATION_REPORT = '@aws-cdk/core:annotationsInVali
 export const DEFAULT_CROSS_STACK_REFERENCES = '@aws-cdk/core:defaultCrossStackReferences';
 export const VALIDATE_AGAINST_DEFAULT_RULES = '@aws-cdk/core:validateAgainstDefaultRules';
 export const ECS_REMOVE_EMPTY_LOAD_BALANCERS = '@aws-cdk/aws-ecs:removeEmptyLoadBalancers';
+export const FN_TRANSFORM_OVERRIDE_KEEPS_SIBLING_KEYS = '@aws-cdk/core:fnTransformOverrideKeepsSiblingKeys';
 
 export const FLAGS: Record<string, FlagInfo> = {
   //////////////////////////////////////////////////////////////////////
@@ -1954,6 +1955,29 @@ export const FLAGS: Record<string, FlagInfo> = {
     recommendedValue: true,
     unconfiguredBehavesLike: { v2: false },
     compatibilityWithOldBehaviorMd: 'Set this flag to `false` to keep omitting the property, and remove the registrations with `aws ecs update-service --load-balancers \'[]\'` instead.',
+  },
+
+  //////////////////////////////////////////////////////////////////////
+  [FN_TRANSFORM_OVERRIDE_KEEPS_SIBLING_KEYS]: {
+    type: FlagType.BugFix,
+    summary: 'Keep existing properties when an override adds an `Fn::Transform` key next to them',
+    detailsMd: `
+      CloudFormation allows \`Fn::Transform\` next to sibling keys, for example to embed an
+      \`AWS::Include\` snippet in a resource's \`Properties\`. Without this flag, an override whose
+      only key is \`Fn::Transform\` replaces the whole object it is merged into, as it would for
+      \`Fn::If\` or \`Ref\`. \`addPropertyOverride('Fn::Transform', ...)\` then removes every other
+      property of the resource, and \`CfnInclude\` can drop properties of resources in the
+      included template that put \`Fn::Transform\` next to other keys.
+
+      When this flag is enabled, the \`Fn::Transform\` key is merged next to the existing keys.
+
+      Enabling this changes the template of any resource that hits this case: the properties that
+      were dropped come back. Adding back a property that requires replacement, such as a bucket
+      name, replaces the resource.`,
+    introducedIn: { v2: 'V2NEXT' },
+    recommendedValue: true,
+    unconfiguredBehavesLike: { v2: false },
+    compatibilityWithOldBehaviorMd: 'Set this flag to `false` to keep dropping the sibling keys, or remove the properties you do not want with `addPropertyDeletionOverride()`.',
   },
 };
 
